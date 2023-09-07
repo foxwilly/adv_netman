@@ -1,0 +1,110 @@
+name: bgp
+
+topology:
+  defaults:
+    kind: linux
+    # img for hosts
+    image: wbitt/network-multitool:alpine-minimal
+    #image: wbitt/network-multitool:alpine-extra
+    # image: nicolaka/netshoot:latest
+  nodes:
+  # BGP ROUTERS
+    R5:
+      image: frrouting/frr
+      binds:
+        - config/R5/daemons:/etc/frr/daemons
+        - config/R5/frr.conf:/etc/frr/frr.conf
+        - config/zebra.conf:/etc/frr/zebra.conf 
+        - config/vtysh.conf:/etc/frr/vtysh.conf 
+    R4:
+      image: frrouting/frr
+      binds:
+        - config/R4/daemons:/etc/frr/daemons
+        - config/R4/frr.conf:/etc/frr/frr.conf
+        - config/zebra.conf:/etc/frr/zebra.conf 
+        - config/vtysh.conf:/etc/frr/vtysh.conf 
+    R3:
+      image: frrouting/frr
+      binds:
+        - config/R3/daemons:/etc/frr/daemons
+        - config/R3/frr.conf:/etc/frr/frr.conf
+        - config/zebra.conf:/etc/frr/zebra.conf 
+        - config/vtysh.conf:/etc/frr/vtysh.conf 
+    Webserver:
+      exec:
+        - ip addr add 192.168.10.2/24 dev eth1
+        - ip route replace 0/0 via 192.168.10.1
+    NMAS:
+      exec:
+        - ip addr add 192.168.30.2/24 dev eth1
+        - ip route replace 0/0 via 192.168.30.1
+    S3:
+      image: globocom/openvswitch
+    S4:
+      image: globocom/openvswitch
+    # RIP ROUTERS
+    R1:
+      image: frrouting/frr
+      binds:
+        - config/R1/daemons:/etc/frr/daemons
+        - config/R1/frr.conf:/etc/frr/frr.conf
+        - config/zebra.conf:/etc/frr/zebra.conf 
+        - config/vtysh.conf:/etc/frr/vtysh.conf 
+    R2:
+      image: frrouting/frr
+      binds:
+        - config/R2/daemons:/etc/frr/daemons
+        - config/R2/frr.conf:/etc/frr/frr.conf
+        - config/zebra.conf:/etc/frr/zebra.conf 
+        - config/vtysh.conf:/etc/frr/vtysh.conf 
+    S1:
+      image: globocom/openvswitch
+    S2:
+      image: globocom/openvswitch
+    H1:
+      exec:
+        - ip addr add 10.1.0.2/24 dev eth1
+        - ip route replace 0/0 via 10.1.0.1
+    H2:
+      exec:
+        - ip addr add 20.1.0.2/24 dev eth1
+        - ip route replace 0/0 via 20.1.0.1
+    H3:
+      exec:
+        - ip addr add 10.1.0.3/24 dev eth1
+        - ip route replace 0/0 via 10.1.0.1
+    H4:
+      exec:
+        - ip addr add 20.1.0.3/24 dev eth1
+        - ip route replace 0/0 via 20.1.0.1
+
+  links:
+  #BGP 
+    - endpoints: ["R5:eth4", "R4:eth4"]
+    - endpoints: ["R4:eth3", "R3:eth3"]
+    - endpoints: ["R3:eth2", "R5:eth3"]
+    #  web server - R5
+    - endpoints: ["Webserver:eth1", "R5:eth2"]
+    # R3 - S3
+    - endpoints: ["R3:eth4", "S3:e1"]
+    # R4 -S4
+    - endpoints: ["R4:eth2", "S4:e1"]
+    # S3 - S4
+    - endpoints: ["S3:e2", "S4:e2"]
+    # NMAS - S3
+    - endpoints: ["NMAS:eth1", "S3:e3"]
+    # S3 - R1
+    - endpoints: ["S3:e4", "R1:eth2"]
+    # S4 - R2
+    - endpoints: ["S4:e3", "R2:eth2"]
+    # R1 - S1
+    - endpoints: ["R1:eth3", "S1:e1"]
+    # R2 - S2
+    - endpoints: ["R2:eth3", "S2:e1"]
+    # S1 - S2
+    - endpoints: ["S1:e2", "S2:e2"]
+    # VLANS
+    - endpoints: ["S1:e3", "H1:eth1"]
+    - endpoints: ["S1:e4", "H2:eth1"]
+    - endpoints: ["S2:e3", "H3:eth1"]
+    - endpoints: ["S2:e4", "H4:eth1"]
