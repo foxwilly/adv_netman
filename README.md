@@ -1,4 +1,4 @@
-# Spine-Leaf Data Centre Topology using FRRouting
+# Data Center Topology using FRRouting
 
 This lab example consists of five [FRR](https://frrouting.org/) routers connected in a spine-leaf topology (two spine and three leaf). Each leaf router is connected to two hosts.
 
