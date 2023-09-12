@@ -1,131 +1,143 @@
 # Data Center Topology using FRRouting
+While working at the tech giant RoboControls Network (RCN), upper management has learned
+that you are pursuing a MS degree in Network Engineering from the world-renowned CU
+Boulder, which is known for producing the best MANE’s in the industry. They have forced you
+into the role of Senior Network Architect–and assigned you a project that will take
+approximately 12 weeks to complete
 
-This lab example consists of five [FRR](https://frrouting.org/) routers connected in a spine-leaf topology (two spine and three leaf). Each leaf router is connected to two hosts.
+The solution designed use five [FRR](https://frrouting.org/) routers connected four [OVS] (https://www.openvswitch.org/)  swithes workign as L2 swithes, as shown int the diagram: 
 
 
 ![Lab Topology](img/bgp_frr.png)
 
 
-## Requirements and credits
+## Requirements
 
-To use this lab, you need to install [containerlab](https://containerlab.srlinux.dev/) (I used the [script method](https://containerlab.srlinux.dev/install/#install-script) Ubuntu 20.04 VM). You also need to have basic familiarity with [Docker](https://www.docker.com/).
+To use this lab, I installed [containerlab](https://containerlab.srlinux.dev/) (I used the [script method](https://containerlab.srlinux.dev/install/#install-script) Ubuntu 22.04 VM). You also need to have basic familiarity with [Docker](https://www.docker.com/).
 
 This lab uses the following Docker images:
 
 - [frrouting/frr](https://hub.docker.com/r/frrouting/frr)
-- [wbitt/network-multitool](https://hub.docker.com/r/wbitt/network-multitool)
-- [nicolaka/netshoot](https://hub.docker.com/r/nicolaka/netshoot)
+- [globocom/openvswitch](https://hub.docker.com/r/globocom/openvswitch)
+- [wilferna/netshoot](https://hub.docker.com/r/wilferna/vr-nxos)
 
 
-## Starting and ending the lab
+## Starting lab
 
 Use the following command to start the lab:
 
 ```
-sudo clab deploy --topo bgp-frr.clab.yml
+sudo containerlab deploy -t bgp.yml 
 ```
 
-For convenience, use the following script to test connectivity between leaf routers and hosts:
+After running this command you would se the following containers:
 
 ```
-./router_connect_test.sh
++----+--------------------+
+| #  |        Name        |
++----+--------------------+
+|  1 | clab-bgp-H1        |
+|  2 | clab-bgp-H2        |
+|  3 | clab-bgp-H3        |
+|  4 | clab-bgp-H4        |
+|  5 | clab-bgp-NMAS      |
+|  6 | clab-bgp-R1        |
+|  7 | clab-bgp-R2        |
+|  8 | clab-bgp-R3        |
+|  9 | clab-bgp-R4        |
+| 10 | clab-bgp-R5        |
+| 11 | clab-bgp-S1        |
+| 12 | clab-bgp-S2        |
+| 13 | clab-bgp-S3        |
+| 14 | clab-bgp-S4        |
+| 15 | clab-bgp-Webserver |
++----+--------------------+
+
 ```
 
-and to test connectivity between hosts:
+and easy way test connectivity between hosts is running ping once you are connected to the host:
 
 ```
-./host_connect_test.sh
-```
-
-To end the lab:
+sudo docker exec -it  clab-bgp-H1 /bin/bash
 
 ```
-sudo clab destroy --topo bgp-frr.clab.yml
+
+To connect to the router use:
+
+```
+sudo docker exec -it clab-bgp-R3 vtysh
+
 ```
 
-## Try this
+## BGP verification
 
-1. Confirm that BGP sessions are established among all peers.  
+To confirm BGP sessions are established among all peers.  
 
    ```
-   $ docker exec clab-bgp_frr-spine1 vtysh -c "show bgp summary"
+   $ sudo docker exec clab-bgp-R3 vtysh -c "show bgp summary"
    ```
 
-2. Show the routes learned from BGP in the routing table. Notices there are two paths to each host.
+To show the routes learned from BGP in the routing table. Notices there are two paths to each host.
 
    ```
-   $ docker exec clab-bgp_frr-leaf1 vtysh -c "show ip route bgp"
+    $ sudo docker exec clab-bgp-R3 vtysh -c "show ip route bgp"
    ```
 
-3. Ping from any one host to another to verify connectivity.
+Ping from any one host to another to verify connectivity.
 
     ```
-    $ docker exec clab-bgp_frr-host11 ping 192.168.31.2
+    $ docker exec clab-bgp-H1 ping 10.1.0.3
     ```
 
-4. Use MTR/traceroute tools to observe the traffic path. Use MTR between several host pairs to confirm that paths are split between the two spine routers.
 
-    ```
-    $ docker exec -it clab-bgp_frr-host11 mtr 192.168.31.2
-    ```
+## OVS consideration
 
-5. There are two paths between any pair of servers. To observe how the network reacts in case of a link failure:
-    a) use MTR to observe the traffic route between two servers, then
-    b) disable one of the links in the route and observe the traffic resume over another route.
-
-    ```
-    $ docker exec -it clab-bgp_frr-spine1 vtysh
-    ```
-
-6. To force traffic to avoid one spine router (e.g. before shutting it down for repairs), prepend the path advertised by the router using a route-map. Add the following lines to the configuration:
-
-    ```
-    route-map SERVICE permit 10
-     set as-path prepend 65000 65000
-    router bgp 65000
-     neighbor LEAF route-map SERVICE out
-    ```
-
-    Repeat (2) to confirm there only one route to each destination.
-
-7. Use iperf3 to send TCP traffic between hosts (requires *wbitt/network-multitool:alpine-extra*):
-   a) Run iperf as a server in one host
-
-   ```
-   $ docker exec -d clab-bgp_frr-host11 iperf3 -s
-   ```
-
-   b) Run iperf as a client from another host
-
-   ```
-   $ docker exec -it clab-bgp_frr-host31 iperf3 -c 192.168.11.2
-   ```
-
-## Selected output
+Something that I had to consider is add the port to the OVS switch, when we connect links in containerlab to the switch, I have to add this interface to the bridge created in OVS.
+This are the steps to configure OVS:
+1.- Create the bridge in OVS:
 
 ```
-$ docker exec clab-bgp_frr-spine1 vtysh -c "show bgp summary"
-% Can't open configuration file /etc/frr/vtysh.conf due to 'No such file or directory'.
-
-IPv4 Unicast Summary (VRF default):
-BGP router identifier 10.10.10.11, local AS number 65000 vrf-id 0
-BGP table version 6
-RIB entries 11, using 2024 bytes of memory
-Peers 3, using 2148 KiB of memory
-Peer groups 1, using 64 bytes of memory
-
-Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc
-eth1            4      65001        19        20        0    0    0 00:00:39            2        6 N/A
-eth2            4      65002        17        18        0    0    0 00:00:36            2        6 N/A
-eth3            4      65003        18        19        0    0    0 00:00:36            2        6 N/A
-
-Total number of neighbors 3
+sudo docker exec clab-bgp2-S1 ovs-vsctl add-br ovsbr0 
 ```
-
+2.- Bring up the bridge in the Host (like an interface):
 
 ```
-$ docker exec clab-bgp_frr-leaf1 vtysh -c "show ip route bgp"
-% Can't open configuration file /etc/frr/vtysh.conf due to 'No such file or directory'.
+sudo docker exec clab-bgp2-S1 ifconfig ovsbr0 up
+```
+3.- Finally add the port where the other devices are connected to the bridge ovsbr0:
+
+```
+sudo docker exec clab-bgp2-S1 ovs-vsctl add-port ovsbr0 eth1
+sudo docker exec clab-bgp2-S1 ovs-vsctl add-port ovsbr0 eth2
+```
+
+In summary I was not ableto configure the step 3 in the containerlab yml file, so I created an additional file add_ports.sh to fix this. 
+```
+cat add_ports.sh 
+sudo docker exec clab-bgp-S1 ovs-vsctl add-port ovsbr0 e1
+sudo docker exec clab-bgp-S1 ovs-vsctl add-port ovsbr0 e2
+sudo docker exec clab-bgp-S1 ovs-vsctl add-port ovsbr0 e3
+sudo docker exec clab-bgp-S1 ovs-vsctl add-port ovsbr0 e4
+
+sudo docker exec clab-bgp-S2 ovs-vsctl add-port ovsbr0 e1
+sudo docker exec clab-bgp-S2 ovs-vsctl add-port ovsbr0 e2
+sudo docker exec clab-bgp-S2 ovs-vsctl add-port ovsbr0 e3
+sudo docker exec clab-bgp-S2 ovs-vsctl add-port ovsbr0 e4
+
+sudo docker exec clab-bgp-S3 ovs-vsctl add-port ovsbr0 e1
+sudo docker exec clab-bgp-S3 ovs-vsctl add-port ovsbr0 e2
+sudo docker exec clab-bgp-S3 ovs-vsctl add-port ovsbr0 e3
+sudo docker exec clab-bgp-S3 ovs-vsctl add-port ovsbr0 e4
+
+sudo docker exec clab-bgp-S4 ovs-vsctl add-port ovsbr0 e1
+sudo docker exec clab-bgp-S4 ovs-vsctl add-port ovsbr0 e2
+sudo docker exec clab-bgp-S4 ovs-vsctl add-port ovsbr0 e3
+```
+
+Finally I was able to configure the routing protocols required and have full connectivity
+
+```
+sudo docker exec -it clab-bgp-R5 vtysh -c "show ip route bgp"
 Codes: K - kernel route, C - connected, S - static, R - RIP,
        O - OSPF, I - IS-IS, B - BGP, E - EIGRP, N - NHRP,
        T - Table, v - VNC, V - VNC-Direct, A - Babel, F - PBR,
@@ -133,41 +145,13 @@ Codes: K - kernel route, C - connected, S - static, R - RIP,
        > - selected route, * - FIB route, q - queued, r - rejected, b - backup
        t - trapped, o - offload failure
 
-B>* 192.168.21.0/24 [20/0] via fe80::a8c1:abff:fe99:55b0, eth2, weight 1, 00:02:58
-  *                        via fe80::a8c1:abff:feab:3957, eth1, weight 1, 00:02:58
-B>* 192.168.22.0/24 [20/0] via fe80::a8c1:abff:fe99:55b0, eth2, weight 1, 00:02:58
-  *                        via fe80::a8c1:abff:feab:3957, eth1, weight 1, 00:02:58
-B>* 192.168.31.0/24 [20/0] via fe80::a8c1:abff:fe99:55b0, eth2, weight 1, 00:02:59
-  *                        via fe80::a8c1:abff:feab:3957, eth1, weight 1, 00:02:59
-B>* 192.168.32.0/24 [20/0] via fe80::a8c1:abff:fe99:55b0, eth2, weight 1, 00:02:59
-  *                        via fe80::a8c1:abff:feab:3957, eth1, weight 1, 00:02:59
-```
+B>* 192.168.21.0/24 [200/0] via 192.168.11.2, eth3, weight 1, 00:22:31
+  *                         via 192.168.12.2, eth4, weight 1, 00:22:31
 
 ```
-$ docker exec clab-bgp_frr-host11 ping 192.168.31.2
-PING 192.168.31.2 (192.168.31.2) 56(84) bytes of data.
-64 bytes from 192.168.31.2: icmp_seq=1 ttl=61 time=0.262 ms
-64 bytes from 192.168.31.2: icmp_seq=2 ttl=61 time=0.174 ms
-...
+Other way to see the same information:
 ```
-
-```
-$ docker exec -it clab-bgp_frr-host11 mtr 192.168.31.2
-My traceroute  [v0.94]
-host11 (192.168.11.2) -> 192.168.31.2                                              2022-02-26T23:27:21+0000
-Keys:  Help   Display mode   Restart statistics   Order of fields   quit
-                                                                Packets               Pings
-Host                                                            Loss%   Snt   Last   Avg  Best  Wrst StDev
-1. 192.168.11.1                                                  0.0%    12    0.7   0.3   0.2   0.7   0.1
-2. 10.10.10.12                                                   0.0%    12    0.3   0.5   0.2   0.9   0.3
-3. 10.10.10.23                                                   0.0%    12    0.3   0.3   0.2   0.3   0.0
-4. 192.168.31.2                                                  0.0%    12    0.2   0.2   0.2   0.3   0.0
-```
-
-
-```
-$ docker exec clab-bgp_frr-leaf1 vtysh -c "show ip route bgp"
-% Can't open configuration file /etc/frr/vtysh.conf due to 'No such file or directory'.
+sudo docker exec -it clab-bgp-R5 vtysh -c "show ip route bgp"
 Codes: K - kernel route, C - connected, S - static, R - RIP,
        O - OSPF, I - IS-IS, B - BGP, E - EIGRP, N - NHRP,
        T - Table, v - VNC, V - VNC-Direct, A - Babel, F - PBR,
@@ -175,33 +159,37 @@ Codes: K - kernel route, C - connected, S - static, R - RIP,
        > - selected route, * - FIB route, q - queued, r - rejected, b - backup
        t - trapped, o - offload failure
 
-B>* 192.168.21.0/24 [20/0] via fe80::a8c1:abff:fe99:55b0, eth2, weight 1, 00:02:44
-B>* 192.168.22.0/24 [20/0] via fe80::a8c1:abff:fe99:55b0, eth2, weight 1, 00:02:44
-B>* 192.168.31.0/24 [20/0] via fe80::a8c1:abff:fe99:55b0, eth2, weight 1, 00:02:44
-B>* 192.168.32.0/24 [20/0] via fe80::a8c1:abff:fe99:55b0, eth2, weight 1, 00:02:44
-```
+B>* 192.168.21.0/24 [200/0] via 192.168.11.2, eth3, weight 1, 00:22:31
+  *                         via 192.168.12.2, eth4, weight 1, 00:22:31
 
 
 ```
-$ docker exec -d clab-bgp_frr-host11 iperf3 -s
-$ docker exec -it clab-bgp_frr-host32 iperf3 -c 192.168.11.2
-Connecting to host 192.168.11.2, port 5201
-[  5] local 192.168.32.2 port 49164 connected to 192.168.11.2 port 5201
-[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
-[  5]   0.00-1.00   sec   229 MBytes  1.92 Gbits/sec    0    258 KBytes
-[  5]   1.00-2.01   sec   231 MBytes  1.93 Gbits/sec    0    286 KBytes
-[  5]   2.01-3.00   sec   214 MBytes  1.80 Gbits/sec    6    332 KBytes
-[  5]   3.00-4.00   sec   216 MBytes  1.81 Gbits/sec    0    434 KBytes
-[  5]   4.00-5.00   sec   220 MBytes  1.85 Gbits/sec    6    434 KBytes
-[  5]   5.00-6.00   sec   221 MBytes  1.85 Gbits/sec   27    434 KBytes
-[  5]   6.00-7.00   sec   222 MBytes  1.87 Gbits/sec   13    434 KBytes
-[  5]   7.00-8.01   sec   222 MBytes  1.86 Gbits/sec    0    434 KBytes
-[  5]   8.01-9.00   sec   238 MBytes  2.00 Gbits/sec   13    434 KBytes
-[  5]   9.00-10.01  sec   225 MBytes  1.88 Gbits/sec    0    434 KBytes
-- - - - - - - - - - - - - - - - - - - - - - - - -
-[ ID] Interval           Transfer     Bitrate         Retr
-[  5]   0.00-10.01  sec  2.19 GBytes  1.88 Gbits/sec   65             sender
-[  5]   0.00-10.01  sec  2.19 GBytes  1.88 Gbits/sec                  receiver
-
-iperf Done.
+conncetivity:
+```
+sudo docker exec -it  clab-bgp-H1 /bin/bash
+bash-5.1# ping 10.1.0.3
+PING 10.1.0.3 (10.1.0.3) 56(84) bytes of data.
+From 10.1.0.2 icmp_seq=1 Destination Host Unreachable
+From 10.1.0.2 icmp_seq=2 Destination Host Unreachable
+From 10.1.0.2 icmp_seq=3 Destination Host Unreachable
+From 10.1.0.2 icmp_seq=4 Destination Host Unreachable
+From 10.1.0.2 icmp_seq=5 Destination Host Unreachable
+From 10.1.0.2 icmp_seq=6 Destination Host Unreachable
+From 10.1.0.2 icmp_seq=7 Destination Host Unreachable
+From 10.1.0.2 icmp_seq=8 Destination Host Unreachable
+From 10.1.0.2 icmp_seq=9 Destination Host Unreachable
+^C
+--- 10.1.0.3 ping statistics ---
+11 packets transmitted, 0 received, +9 errors, 100% packet loss, time 10229ms
+pipe 4
+bash-5.1# ping 10.1.0.3
+PING 10.1.0.3 (10.1.0.3) 56(84) bytes of data.
+64 bytes from 10.1.0.3: icmp_seq=1 ttl=64 time=3.40 ms
+64 bytes from 10.1.0.3: icmp_seq=2 ttl=64 time=0.082 ms
+64 bytes from 10.1.0.3: icmp_seq=3 ttl=64 time=0.082 ms
+^C
+--- 10.1.0.3 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2002ms
+rtt min/avg/max/mdev = 0.082/1.186/3.396/1.562 ms
+bash-5.1# 
 ```
