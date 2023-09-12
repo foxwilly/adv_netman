@@ -193,3 +193,56 @@ PING 10.1.0.3 (10.1.0.3) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.082/1.186/3.396/1.562 ms
 bash-5.1# 
 ```
+Routing protocols and routes validations:
+```
+R3# willy@VM2:~/adv_netman$ sudo docker exec -it clab-bgp-R3 vtysh
+
+Hello, this is FRRouting (version 8.4_git).
+Copyright 1996-2005 Kunihiro Ishiguro, et al.
+
+R3# show ip ospf neighbor 
+
+Neighbor ID     Pri State           Up Time         Dead Time Address         Interface                        RXmtL RqstL DBsmL
+4.4.4.4           1 Full/DR         29.499s           35.497s 192.168.30.3    eth4:192.168.30.1                    0     0     0
+1.1.1.1           1 Full/DROther    22.433s           33.370s 192.168.30.4    eth4:192.168.30.1                    0     0     0
+2.2.2.2           1 Full/DROther    37.430s           31.908s 192.168.30.5    eth4:192.168.30.1                    0     0     0
+
+R3# show ip bgp summary   
+
+IPv4 Unicast Summary (VRF default):
+BGP router identifier 3.3.3.3, local AS number 65000 vrf-id 0
+BGP table version 4
+RIB entries 7, using 1344 bytes of memory
+Peers 2, using 1434 KiB of memory
+
+Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc
+192.168.11.1    4      65000         6         6        0    0    0 00:02:54            3        2 N/A
+192.168.21.1    4      65000         6         6        0    0    0 00:02:54            2        2 N/A
+
+Total number of neighbors 2
+R3#
+
+R3# show ip route ospf
+Codes: K - kernel route, C - connected, S - static, R - RIP,
+       O - OSPF, I - IS-IS, B - BGP, E - EIGRP, N - NHRP,
+       T - Table, v - VNC, V - VNC-Direct, A - Babel, F - PBR,
+       f - OpenFabric,
+       > - selected route, * - FIB route, q - queued, r - rejected, b - backup
+       t - trapped, o - offload failure
+
+O   192.168.30.0/24 [110/10] is directly connected, eth4, weight 1, 00:04:53
+R3# 
+R3# show ip route bgp
+Codes: K - kernel route, C - connected, S - static, R - RIP,
+       O - OSPF, I - IS-IS, B - BGP, E - EIGRP, N - NHRP,
+       T - Table, v - VNC, V - VNC-Direct, A - Babel, F - PBR,
+       f - OpenFabric,
+       > - selected route, * - FIB route, q - queued, r - rejected, b - backup
+       t - trapped, o - offload failure
+
+B>* 192.168.10.0/24 [200/0] via 192.168.11.1, eth2, weight 1, 00:06:08
+B>* 192.168.12.0/24 [200/0] via 192.168.11.1, eth2, weight 1, 00:06:08
+  *                         via 192.168.21.1, eth3, weight 1, 00:06:08
+R3# 
+
+```
